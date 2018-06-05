@@ -1,4 +1,9 @@
 <resources>
     <string name="app_name">MapsProject</string>
     <string name="title_activity_maps">Map</string>
+    <string name="title_location_permission">Разрешить программе \"Map\'s Notification\" доступ к Вашим геоднанным пока вы работаете с ней?</string>
+    <string name="text_location_permission">Программа использует ваше местоположение для показа уведомлений.</string>
+    <string name="ok">Разрешить</string>
+    <string name="canel">Запретить</string>
+    <string name="ok_add_marker">OK</string>
 </resources>
