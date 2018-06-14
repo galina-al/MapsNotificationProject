@@ -6,4 +6,7 @@
     <string name="ok">Разрешить</string>
     <string name="canel">Запретить</string>
     <string name="ok_add_marker">OK</string>
+    <string name="selectLocal">selectLocal</string>
+    <string name="notification">Напоминание</string>
+    <string name="save">Save</string>
 </resources>
