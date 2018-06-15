@@ -1,9 +1,11 @@
-package com.example.user.mapsproject.DB;
+package com.example.user.mapsproject.db;
 
 
-import com.example.user.mapsproject.MarkerItem;
+import com.example.user.mapsproject.models.MarkerItem;
 
 import java.util.List;
+
+import nl.qbusict.cupboard.DatabaseCompartment;
 
 import static nl.qbusict.cupboard.CupboardFactory.cupboard;
 
@@ -36,5 +38,12 @@ public class MarkersRepository {
         cupboard().withDatabase(databaseHelper.getWritableDatabase()).delete(MarkerItem.class, null);
     }
 
+    public MarkerItem getByField(String field, String fieldValue) {
+        return getStorage().query(MarkerItem.class).withSelection(field + " = ?", new String[]{fieldValue}).get();
+    }
+
+    protected DatabaseCompartment getStorage() {
+        return cupboard().withDatabase(databaseHelper.getWritableDatabase());
+    }
 
 }

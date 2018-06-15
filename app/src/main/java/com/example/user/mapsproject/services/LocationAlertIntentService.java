@@ -1,4 +1,4 @@
-package com.example.user.mapsproject;
+package com.example.user.mapsproject.services;
 
 import android.app.IntentService;
 import android.app.NotificationManager;
@@ -11,6 +11,7 @@ import android.support.v4.app.NotificationCompat;
 import android.text.TextUtils;
 import android.util.Log;
 
+import com.example.user.mapsproject.R;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingEvent;
 

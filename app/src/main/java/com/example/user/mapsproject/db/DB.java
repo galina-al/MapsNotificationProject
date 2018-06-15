@@ -1,4 +1,4 @@
-package com.example.user.mapsproject.DB;
+package com.example.user.mapsproject.db;
 
 import android.content.Context;
 

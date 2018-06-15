@@ -1,11 +1,11 @@
-package com.example.user.mapsproject.DB;
+package com.example.user.mapsproject.db;
 
 import android.content.Context;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.provider.BaseColumns;
 
-import com.example.user.mapsproject.MarkerItem;
+import com.example.user.mapsproject.models.MarkerItem;
 
 import java.util.List;
 
@@ -18,7 +18,7 @@ import static nl.qbusict.cupboard.CupboardFactory.cupboard;
 public class MapsDbHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "MapsNotify.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 3;
 
     static {
         cupboard().register(MarkerItem.class);

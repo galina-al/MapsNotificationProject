@@ -3,7 +3,7 @@ package com.example.user.mapsproject;
 
 import android.app.Application;
 
-import com.example.user.mapsproject.DB.DB;
+import com.example.user.mapsproject.db.DB;
 
 public class MyApplication extends Application{
 

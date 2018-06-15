@@ -1,14 +1,19 @@
-package com.example.user.mapsproject;
+package com.example.user.mapsproject.ui;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.AlertDialog;
 import android.app.PendingIntent;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.design.widget.BaseTransientBottomBar;
@@ -25,19 +30,24 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
 
-import com.example.user.mapsproject.DB.DB;
-import com.example.user.mapsproject.DB.MarkersRepository;
+import com.example.user.mapsproject.ProximityIntentReceiver;
+import com.example.user.mapsproject.db.DB;
+import com.example.user.mapsproject.db.MarkersRepository;
+import com.example.user.mapsproject.services.LocationAlertIntentService;
+import com.example.user.mapsproject.models.MarkerItem;
+import com.example.user.mapsproject.R;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingClient;
 import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
+import com.google.maps.android.clustering.Cluster;
 import com.google.maps.android.clustering.ClusterManager;
 
 import java.io.IOException;
@@ -45,8 +55,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback, GoogleMap.OnMarkerClickListener {
+public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback {
 
+    private static final long MINIMUM_DISTANCECHANGE_FOR_UPDATE = 1; // in Meters
+    private static final long MINIMUM_TIME_BETWEEN_UPDATE = 1000; // in Milliseconds
+
+    private static final long POINT_RADIUS = 300; // in Meters
+    private static final long PROX_ALERT_EXPIRATION = -1;
+
+    private static final String PROX_ALERT_INTENT =
+            "com.javacodegeeks.android.lbs.ProximityAlert";
     public static final int MY_PERMISSIONS_REQUEST_LOCATION = 666;
     private static final int GEOFENCE_RADIUS = 2;
     private GoogleMap mMap;
@@ -58,7 +76,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private ClusterManager<MarkerItem> clusterManager;
     private MarkersRepository repository;
 
+    private LocationManager locationManager;
 
+
+    @SuppressLint("MissingPermission")
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -85,6 +106,10 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             }
         });
 
+        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        if (!isLocationAccessPermitted()) {
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, MINIMUM_TIME_BETWEEN_UPDATE, MINIMUM_DISTANCECHANGE_FOR_UPDATE, new MyLocationListener());
+        }
         geofencingClient = LocationServices.getGeofencingClient(this);
         repository = DB.getDb().getMarkersRepository();
     }
@@ -92,76 +117,84 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     @Override
     public void onMapReady(GoogleMap googleMap) {
         mMap = googleMap;
-        mMap.setOnMarkerClickListener(this);
         mMap.getUiSettings().setZoomControlsEnabled(true);
         mMap.getUiSettings().setCompassEnabled(true);
 
+        List<MarkerItem> markerList = repository.getAll();
         clusterManager = new ClusterManager<MarkerItem>(this.getApplicationContext(), mMap);
-        mMap.setOnCameraIdleListener(clusterManager);
+
+        clusterManager.addItems(markerList);
         clusterManager.cluster();
 
-        List<MarkerItem> markerList = repository.getAll();
-        clusterManager.addItems(markerList);
-//        for (MarkerItem item : markerList) {
-//            mMap.addMarker(item.getOptions());
-//        }
+
+        clusterManager.setOnClusterClickListener(new ClusterManager.OnClusterClickListener<MarkerItem>() {
+            @Override
+            public boolean onClusterClick(Cluster<MarkerItem> cluster) {
+                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
+                        cluster.getPosition(), mMap.getCameraPosition().zoom + 5), 300,
+                        null);
+                return true;
+            }
+        });
+
+        clusterManager.setOnClusterItemClickListener(new ClusterManager.OnClusterItemClickListener<MarkerItem>() {
+            @Override
+            public boolean onClusterItemClick(final MarkerItem markerItem) {
+                try {
+                    Geocoder geocoder;
+                    List<Address> addresses;
+                    geocoder = new Geocoder(getApplicationContext(), Locale.getDefault());
+
+                    addresses = geocoder.getFromLocation(markerItem.getPosition().latitude, markerItem.getPosition().longitude, 1);
+
+                    String addressLine = addresses.get(0).getThoroughfare();
+                    String newAddress = new String();
+                    if (addressLine.contains("проспект")) {
+                        newAddress = addressLine.replace("проспект", "пр-т.");
+                    } else if (addresses.contains("переулок")) {
+                        newAddress = addressLine.replace("переулок", "п-к.");
+                    } else if (addresses.contains("площадь")) {
+                        newAddress = addressLine.replace("площадь", "пл.");
+                    } else if (addresses.contains("бульвар")) {
+                        newAddress = addressLine.replace("бульвар", "б-р.");
+                    } else if (addresses.contains("улица")) {
+                        newAddress = addressLine.replace("улица", "ул.");
+                    }
+
+                    String description = newAddress + ", "
+                            + addresses.get(0).getFeatureName() + "\n"
+                            + addresses.get(0).getLocality() + ", "
+                            + addresses.get(0).getCountryName();
+                    final Snackbar snackbar = Snackbar.make(findViewById(R.id.coordinatorLayout), description, BaseTransientBottomBar.LENGTH_INDEFINITE);
+                    snackbar.setAction("Delete", new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            List<String> markerKey = new ArrayList<>();
+                            markerKey.add(markerItem.getLatitude() + "/" + markerItem.getLongitude());
+
+                            MarkerItem markerItem = repository.getByField("key", markerKey.get(0));
+                            if (removeLocationAlert(markerKey)) {
+                                repository.deleteMarkerItem(markerItem);
+                                clusterManager.clearItems();
+                                clusterManager.addItems(repository.getAll());
+                            }
+                            clusterManager.cluster();
+                        }
+                    });
+                    snackbar.show();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+                return true;
+            }
+        });
+        mMap.setOnCameraIdleListener(clusterManager);
+        mMap.setOnMarkerClickListener(clusterManager);
 
         showCurrentLocation();
     }
 
-    @Override
-    public boolean onMarkerClick(final Marker marker) {
-        try {
-            Geocoder geocoder;
-            List<Address> addresses;
-            geocoder = new Geocoder(this, Locale.getDefault());
 
-            addresses = geocoder.getFromLocation(marker.getPosition().latitude, marker.getPosition().longitude, 1);
-
-            String addressLine = addresses.get(0).getThoroughfare();
-            String newAddress = new String();
-            if (addressLine.contains("проспект")) {
-                newAddress = addressLine.replace("проспект", "пр-т.");
-            } else if (addresses.contains("переулок")) {
-                newAddress = addressLine.replace("переулок", "п-к.");
-            } else if (addresses.contains("площадь")) {
-                newAddress = addressLine.replace("площадь", "пл.");
-            } else if (addresses.contains("бульвар")) {
-                newAddress = addressLine.replace("бульвар", "б-р.");
-            } else if (addresses.contains("улица")) {
-                newAddress = addressLine.replace("улица", "ул.");
-            }
-
-            String description = newAddress + ", "
-                    + addresses.get(0).getFeatureName() + "\n"
-                    + addresses.get(0).getLocality() + ", "
-                    + addresses.get(0).getCountryName();
-            Snackbar snackbar = Snackbar.make(findViewById(R.id.coordinatorLayout), description, BaseTransientBottomBar.LENGTH_INDEFINITE);
-            snackbar.setAction("Delete", new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    List<String> markerId = new ArrayList<>();
-                    MarkerItem markerItem = new MarkerItem(
-                            marker.getPosition().latitude,
-                            marker.getPosition().longitude,
-                            marker.getTitle());
-                    markerId.add(markerItem.getLatitude() + "/" + markerItem.getLongitude());
-                    if (removeLocationAlert(markerId)) {
-                        repository.deleteMarkerItem(markerItem);
-                        List<MarkerItem> list = repository.getAll();
-                        clusterManager.clearItems();
-                        clusterManager.addItems(list);
-                        clusterManager.cluster();
-                    }
-                }
-
-            });
-            snackbar.show();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return false;
-    }
 
     @SuppressLint("MissingPermission")
     private void showCurrentLocation() {
@@ -225,13 +258,15 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 new AlertDialog.Builder(this)
                         .setTitle(R.string.notification)
                         .setView(textNotify)
-                        .setSingleChoiceItems(new String[]{"Enter", "Exit"}, 0, new DialogInterface.OnClickListener() {
+                        .setSingleChoiceItems(new String[]{"Enter", "Exit", "Dwell"}, 0, new DialogInterface.OnClickListener() {
                             @Override
                             public void onClick(DialogInterface dialog, int which) {
                                 if (which == 0) {
                                     selectedTrigger[0] = GeofencingRequest.INITIAL_TRIGGER_ENTER;
                                 } else if (which == 1) {
                                     selectedTrigger[0] = GeofencingRequest.INITIAL_TRIGGER_EXIT;
+                                } else if (which == 2) {
+                                    selectedTrigger[0] = GeofencingRequest.INITIAL_TRIGGER_DWELL;
                                 }
                             }
                         })
@@ -242,6 +277,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                                         selectedLocal.longitude,
                                         selectedTrigger[0],
                                         textNotify.getText().toString());
+//                                addProximityAlert(selectedLocal.latitude, selectedLocal.longitude);
                                 imageAddMarker.setVisibility(View.GONE);
                                 addButton.setVisibility(View.VISIBLE);
                                 toolbar.setVisibility(View.GONE);
@@ -261,6 +297,25 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     }
 
     @SuppressLint("MissingPermission")
+    private void addProximityAlert(double latitude, double longitude) {
+
+        Intent intent = new Intent(PROX_ALERT_INTENT);
+        PendingIntent proximityIntent = PendingIntent.getBroadcast(this, 0, intent, 0);
+
+        locationManager.addProximityAlert(
+                latitude, // the latitude of the central point of the alert region
+                longitude, // the longitude of the central point of the alert region
+                POINT_RADIUS, // the radius of the central point of the alert region, in meters
+                PROX_ALERT_EXPIRATION, // time for this proximity alert, in milliseconds, or -1 to indicate no expiration
+                proximityIntent // will be used to generate an Intent to fire when entry to or exit from the alert region is detected
+        );
+
+        IntentFilter filter = new IntentFilter(PROX_ALERT_INTENT);
+        registerReceiver(new ProximityIntentReceiver(), filter);
+
+    }
+
+    @SuppressLint("MissingPermission")
     private void addLocationAlert(double latitude, double longitude, int trigger, String textNotify) {
         if (isLocationAccessPermitted()) {
             requestLocationAccessPermission();
@@ -271,8 +326,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             clusterManager.addItem(item);
             clusterManager.cluster();
 
-            String key = latitude + "/" + longitude;
-            Geofence geofence = getGeofence(latitude, longitude, key, trigger);
+            /*Geofence geofence = getGeofence(latitude, longitude, item.getKey(), trigger);
             geofencingClient.addGeofences(getGeofencingRequest(geofence, trigger),
                     getGeofencePendingIntent())
                     .addOnCompleteListener(new OnCompleteListener<Void>() {
@@ -288,7 +342,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                                         Toast.LENGTH_SHORT).show();
                             }
                         }
-                    });
+                    });*/
+            addProximityAlert(latitude, longitude);
         }
     }
 
@@ -340,5 +395,28 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                     });
         }
         return result[0];
+    }
+
+    private class MyLocationListener implements LocationListener {
+        @Override
+        public void onLocationChanged(Location location) {
+
+
+        }
+
+        @Override
+        public void onStatusChanged(String provider, int status, Bundle extras) {
+
+        }
+
+        @Override
+        public void onProviderEnabled(String provider) {
+
+        }
+
+        @Override
+        public void onProviderDisabled(String provider) {
+
+        }
     }
 }
