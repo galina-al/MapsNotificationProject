@@ -18,9 +18,12 @@ import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.design.widget.BaseTransientBottomBar;
 import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.NavigationView;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
@@ -29,15 +32,12 @@ import android.view.View;
 import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
-
 import com.example.user.mapsproject.NotificationChannelUtils;
 import com.example.user.mapsproject.ProximityIntentReceiver;
 import com.example.user.mapsproject.db.DB;
 import com.example.user.mapsproject.db.MarkersRepository;
-import com.example.user.mapsproject.services.LocationAlertIntentService;
 import com.example.user.mapsproject.models.MarkerItem;
 import com.example.user.mapsproject.R;
-import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingClient;
 import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationServices;
@@ -48,7 +48,6 @@ import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
-import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.maps.android.clustering.Cluster;
@@ -60,18 +59,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
+import static com.example.user.mapsproject.Constants.MINIMUM_DISTANCE_CHANGE_FOR_UPDATE;
+import static com.example.user.mapsproject.Constants.MINIMUM_TIME_BETWEEN_UPDATE;
+import static com.example.user.mapsproject.Constants.MY_PERMISSIONS_REQUEST_LOCATION;
+import static com.example.user.mapsproject.Constants.POINT_RADIUS;
+import static com.example.user.mapsproject.Constants.PROX_ALERT_EXPIRATION;
+import static com.example.user.mapsproject.Constants.PROX_ALERT_INTENT;
+
 public class MapsActivity extends AppCompatActivity implements OnMapReadyCallback {
-
-    private static final long MINIMUM_DISTANCECHANGE_FOR_UPDATE = 1; // in Meters
-    private static final long MINIMUM_TIME_BETWEEN_UPDATE = 1000; // in Milliseconds
-
-    private static final long POINT_RADIUS = 300; // in Meters
-    private static final long PROX_ALERT_EXPIRATION = -1;
-
-    private static final String PROX_ALERT_INTENT =
-            "com.javacodegeeks.android.lbs.ProximityAlert";
-    public static final int MY_PERMISSIONS_REQUEST_LOCATION = 666;
-    private static final int GEOFENCE_RADIUS = 2;
 
     private NotificationChannelUtils channelUtils;
     private GoogleMap mMap;
@@ -84,6 +79,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     private MarkersRepository repository;
 
     private LocationManager locationManager;
+    private NavigationView navigationView;
+    private DrawerLayout drawerLayout;
 
 
     @SuppressLint("MissingPermission")
@@ -102,6 +99,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         setSupportActionBar(toolbar);
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         getSupportActionBar().setDisplayShowHomeEnabled(true);
+        getSupportActionBar().setHomeAsUpIndicator(android.R.drawable.ic_menu_sort_by_size);
 
         imageAddMarker = (ImageView) findViewById(R.id.imageAddMarker);
         addButton = (FloatingActionButton) findViewById(R.id.addButton);
@@ -110,17 +108,40 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             public void onClick(View v) {
                 imageAddMarker.setVisibility(View.VISIBLE);
                 addButton.setVisibility(View.INVISIBLE);
-                toolbar.setVisibility(View.VISIBLE);
+                toolbar.getMenu().findItem(R.id.ok_button).setVisible(true);
 
             }
         });
 
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         if (!isLocationAccessPermitted()) {
-            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, MINIMUM_TIME_BETWEEN_UPDATE, MINIMUM_DISTANCECHANGE_FOR_UPDATE, new MyLocationListener());
+            locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, MINIMUM_TIME_BETWEEN_UPDATE, MINIMUM_DISTANCE_CHANGE_FOR_UPDATE, new MyLocationListener());
         }
         geofencingClient = LocationServices.getGeofencingClient(this);
         repository = DB.getDb().getMarkersRepository();
+
+        drawerLayout = findViewById(R.id.drawerLayout);
+
+        navigationView = findViewById(R.id.nav_view);
+        navigationView.setCheckedItem(R.id.nav_map);
+        navigationView.setNavigationItemSelectedListener(
+                new NavigationView.OnNavigationItemSelectedListener() {
+                    @Override
+                    public boolean onNavigationItemSelected(MenuItem menuItem) {
+                        menuItem.setChecked(true);
+                        drawerLayout.closeDrawers();
+                        Intent intent;
+                        switch (menuItem.getItemId()) {
+                            case R.id.nav_list:
+                                intent = new Intent(MapsActivity.this, ListNotifyActivity.class);
+                                startActivity(intent);
+                                break;
+                            case R.id.nav_map:
+                                break;
+                        }
+                        return true;
+                    }
+                });
     }
 
     @Override
@@ -141,11 +162,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             public boolean onClusterClick(Cluster<MarkerItem> cluster) {
                 Collection collection = cluster.getItems();
                 CameraUpdate cu = getCameraUpdate(collection);
-                mMap.moveCamera(cu);
                 mMap.animateCamera(cu);
-//                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
-//                        cluster.getPosition(), mMap.getCameraPosition().zoom + 5), 300,
-//                        null);
                 return true;
             }
         });
@@ -178,7 +195,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                             + addresses.get(0).getFeatureName() + "\n"
                             + addresses.get(0).getLocality() + ", "
                             + addresses.get(0).getCountryName();
-                    final Snackbar snackbar = Snackbar.make(findViewById(R.id.coordinatorLayout), description, BaseTransientBottomBar.LENGTH_INDEFINITE);
+                    final Snackbar snackbar = Snackbar.make(findViewById(R.id.drawerLayout), description, BaseTransientBottomBar.LENGTH_INDEFINITE);
                     snackbar.setAction("Delete", new View.OnClickListener() {
                         @Override
                         public void onClick(View v) {
@@ -305,16 +322,19 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
 //                                addProximityAlert(selectedLocal.latitude, selectedLocal.longitude);
                                 imageAddMarker.setVisibility(View.GONE);
                                 addButton.setVisibility(View.VISIBLE);
-                                toolbar.setVisibility(View.GONE);
+//                                toolbar.setVisibility(View.GONE);
+                                toolbar.getMenu().findItem(R.id.ok_button).setVisible(true);
                             }
                         })
                         .create()
                         .show();
                 return true;
             case android.R.id.home:
+                drawerLayout.openDrawer(GravityCompat.START);
                 imageAddMarker.setVisibility(View.GONE);
                 addButton.setVisibility(View.VISIBLE);
-                toolbar.setVisibility(View.GONE);
+//                toolbar.setVisibility(View.GONE);
+                toolbar.getMenu().findItem(R.id.ok_button).setVisible(false);
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -328,11 +348,11 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         PendingIntent proximityIntent = PendingIntent.getBroadcast(this, 0, intent, 0);
 
         locationManager.addProximityAlert(
-                latitude, // the latitude of the central point of the alert region
-                longitude, // the longitude of the central point of the alert region
-                POINT_RADIUS, // the radius of the central point of the alert region, in meters
-                PROX_ALERT_EXPIRATION, // time for this proximity alert, in milliseconds, or -1 to indicate no expiration
-                proximityIntent // will be used to generate an Intent to fire when entry to or exit from the alert region is detected
+                latitude,
+                longitude,
+                POINT_RADIUS,
+                PROX_ALERT_EXPIRATION,
+                proximityIntent
         );
 
         IntentFilter filter = new IntentFilter(PROX_ALERT_INTENT);
@@ -371,29 +391,29 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             addProximityAlert(latitude, longitude);
         }
     }
-
-    private PendingIntent getGeofencePendingIntent() {
-        Intent intent = new Intent(this, LocationAlertIntentService.class);
-        return PendingIntent.getService(this, 0, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT);
-    }
-
-    private GeofencingRequest getGeofencingRequest(Geofence geofence, int trigger) {
-        GeofencingRequest.Builder builder = new GeofencingRequest.Builder();
-
-        builder.setInitialTrigger(trigger);
-        builder.addGeofence(geofence);
-        return builder.build();
-    }
-
-    private Geofence getGeofence(double lat, double lang, String key, int trigger) {
-        return new Geofence.Builder()
-                .setRequestId(key)
-                .setCircularRegion(lat, lang, GEOFENCE_RADIUS)
-                .setExpirationDuration(Geofence.NEVER_EXPIRE)
-                .setTransitionTypes(trigger)
-                .build();
-    }
+//
+//    private PendingIntent getGeofencePendingIntent() {
+//        Intent intent = new Intent(this, LocationAlertIntentService.class);
+//        return PendingIntent.getService(this, 0, intent,
+//                PendingIntent.FLAG_UPDATE_CURRENT);
+//    }
+//
+//    private GeofencingRequest getGeofencingRequest(Geofence geofence, int trigger) {
+//        GeofencingRequest.Builder builder = new GeofencingRequest.Builder();
+//
+//        builder.setInitialTrigger(trigger);
+//        builder.addGeofence(geofence);
+//        return builder.build();
+//    }
+//
+//    private Geofence getGeofence(double lat, double lang, String key, int trigger) {
+//        return new Geofence.Builder()
+//                .setRequestId(key)
+//                .setCircularRegion(lat, lang, GEOFENCE_RADIUS)
+//                .setExpirationDuration(Geofence.NEVER_EXPIRE)
+//                .setTransitionTypes(trigger)
+//                .build();
+//    }
 
     private boolean removeLocationAlert(List<String> requestId) {
         final Boolean[] result = {true};

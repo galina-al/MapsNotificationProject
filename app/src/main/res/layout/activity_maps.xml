@@ -1,9 +1,13 @@
-<android.support.design.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<?xml version="1.0" encoding="utf-8"?>
+
+<android.support.v4.widget.DrawerLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:map="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/coordinatorLayout"
+    android:id="@+id/drawerLayout"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    tools:context=".ui.MapsActivity">
 
     <FrameLayout
         android:layout_width="match_parent"
@@ -14,9 +18,7 @@
             android:layout_height="match_parent"
             android:orientation="vertical">
 
-            <include
-                layout="@layout/toolbar"
-                android:visibility="gone" />
+            <include layout="@layout/toolbar" />
 
             <fragment
                 android:id="@+id/map"
@@ -37,22 +39,31 @@
                 android:id="@+id/imageAddMarker"
                 android:layout_width="40dp"
                 android:layout_height="40dp"
-                android:layout_marginTop="30dp"
+                android:layout_marginBottom="20dp"
                 android:src="@drawable/map_blue_marker"
                 android:visibility="invisible" />
 
         </LinearLayout>
+
+        <android.support.design.widget.FloatingActionButton
+            android:id="@+id/addButton"
+            android:layout_width="70dp"
+            android:layout_height="70dp"
+            android:layout_gravity="bottom|left"
+            android:layout_margin="15dp"
+            android:clickable="true"
+            android:visibility="visible"
+            map:backgroundTint="@color/colorAccent"
+            map:srcCompat="@drawable/add_icon" />
     </FrameLayout>
 
-    <android.support.design.widget.FloatingActionButton
-        android:id="@+id/addButton"
-        android:layout_width="70dp"
-        android:layout_height="70dp"
-        android:layout_gravity="bottom|left"
-        android:layout_margin="15dp"
-        android:clickable="true"
-        android:visibility="visible"
-        map:backgroundTint="@color/colorAccent"
-        map:srcCompat="@drawable/add_icon" />
+    <android.support.design.widget.NavigationView
+        android:id="@+id/nav_view"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_gravity="start"
+        android:fitsSystemWindows="true"
+        app:headerLayout="@layout/header_layout"
+        app:menu="@menu/drawer_view" />
 
-</android.support.design.widget.CoordinatorLayout>
+</android.support.v4.widget.DrawerLayout>
