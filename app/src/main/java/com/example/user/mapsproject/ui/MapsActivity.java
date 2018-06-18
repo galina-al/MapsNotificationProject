@@ -30,6 +30,7 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.example.user.mapsproject.NotificationChannelUtils;
 import com.example.user.mapsproject.ProximityIntentReceiver;
 import com.example.user.mapsproject.db.DB;
 import com.example.user.mapsproject.db.MarkersRepository;
@@ -40,11 +41,14 @@ import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingClient;
 import com.google.android.gms.location.GeofencingRequest;
 import com.google.android.gms.location.LocationServices;
+import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
 import com.google.maps.android.clustering.Cluster;
@@ -52,6 +56,7 @@ import com.google.maps.android.clustering.ClusterManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
@@ -67,6 +72,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
             "com.javacodegeeks.android.lbs.ProximityAlert";
     public static final int MY_PERMISSIONS_REQUEST_LOCATION = 666;
     private static final int GEOFENCE_RADIUS = 2;
+
+    private NotificationChannelUtils channelUtils;
     private GoogleMap mMap;
     private FloatingActionButton addButton;
     private ImageView imageAddMarker;
@@ -84,6 +91,8 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
+
+        channelUtils = new NotificationChannelUtils(this);
 
         mapFragment = (SupportMapFragment) getSupportFragmentManager()
                 .findFragmentById(R.id.map);
@@ -130,9 +139,13 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         clusterManager.setOnClusterClickListener(new ClusterManager.OnClusterClickListener<MarkerItem>() {
             @Override
             public boolean onClusterClick(Cluster<MarkerItem> cluster) {
-                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
-                        cluster.getPosition(), mMap.getCameraPosition().zoom + 5), 300,
-                        null);
+                Collection collection = cluster.getItems();
+                CameraUpdate cu = getCameraUpdate(collection);
+                mMap.moveCamera(cu);
+                mMap.animateCamera(cu);
+//                mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(
+//                        cluster.getPosition(), mMap.getCameraPosition().zoom + 5), 300,
+//                        null);
                 return true;
             }
         });
@@ -194,6 +207,18 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         showCurrentLocation();
     }
 
+    private CameraUpdate getCameraUpdate(Collection<MarkerItem> markerItems) {
+
+        LatLngBounds.Builder builder = new LatLngBounds.Builder();
+        for (MarkerItem marker : markerItems) {
+            builder.include(marker.getPosition());
+        }
+        LatLngBounds bounds = builder.build();
+
+        int padding = 100;
+        CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLngBounds(bounds, padding);
+        return cameraUpdate;
+    }
 
 
     @SuppressLint("MissingPermission")

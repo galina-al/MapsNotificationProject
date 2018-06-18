@@ -47,31 +47,15 @@ public class ProximityIntentReceiver extends BroadcastReceiver {
 
     }
 
-//    private Notification createNotification() {
-//        Notification notification = new Notification();
-//
-//        notification.icon = R.drawable.add_icon;
-//        notification.when = System.currentTimeMillis();
-//
-//        notification.flags |= Notification.FLAG_AUTO_CANCEL;
-//        notification.flags |= Notification.FLAG_SHOW_LIGHTS;
-//
-//        notification.defaults |= Notification.DEFAULT_VIBRATE;
-//        notification.defaults |= Notification.DEFAULT_LIGHTS;
-//
-//        notification.ledARGB = Color.WHITE;
-//        notification.ledOnMS = 1500;
-//        notification.ledOffMS = 1500;
-//
-//        return notification;
-//    }
+
 
     public void createNotification(Context context, String contentText) {
         NotificationCompat.Builder mBuilder =
-                new NotificationCompat.Builder(context)
+                new NotificationCompat.Builder(context, NotificationChannelUtils.CHANNEL_ID)
                         .setSmallIcon(android.support.v4.R.drawable.notification_icon_background)
                         .setContentTitle("Notice")
-                        .setContentText(contentText);
+                        .setContentText(contentText)
+                        .setAutoCancel(true);
         Intent resultIntent = new Intent(context, MapsActivity.class);
 
         TaskStackBuilder stackBuilder = TaskStackBuilder.create(context);
@@ -84,7 +68,7 @@ public class ProximityIntentReceiver extends BroadcastReceiver {
                 );
         mBuilder.setContentIntent(resultPendingIntent);
         Notification note = mBuilder.build();
-        note.defaults |= Notification.DEFAULT_VIBRATE;
+//        note.defaults |= Notification.DEFAULT_VIBRATE;
         note.defaults |= Notification.DEFAULT_SOUND;
         NotificationManager mNotificationManager =
                 (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
