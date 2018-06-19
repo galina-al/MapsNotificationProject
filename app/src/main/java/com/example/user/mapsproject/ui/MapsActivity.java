@@ -109,6 +109,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 imageAddMarker.setVisibility(View.VISIBLE);
                 addButton.setVisibility(View.INVISIBLE);
                 toolbar.getMenu().findItem(R.id.ok_button).setVisible(true);
+                getSupportActionBar().setHomeAsUpIndicator(R.drawable.back);
 
             }
         });
@@ -232,7 +233,7 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
         }
         LatLngBounds bounds = builder.build();
 
-        int padding = 100;
+        int padding = 200;
         CameraUpdate cameraUpdate = CameraUpdateFactory.newLatLngBounds(bounds, padding);
         return cameraUpdate;
     }
@@ -319,11 +320,9 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                                         selectedLocal.longitude,
                                         selectedTrigger[0],
                                         textNotify.getText().toString());
-//                                addProximityAlert(selectedLocal.latitude, selectedLocal.longitude);
                                 imageAddMarker.setVisibility(View.GONE);
                                 addButton.setVisibility(View.VISIBLE);
-//                                toolbar.setVisibility(View.GONE);
-                                toolbar.getMenu().findItem(R.id.ok_button).setVisible(true);
+                                toolbar.getMenu().findItem(R.id.ok_button).setVisible(false);
                             }
                         })
                         .create()
@@ -333,7 +332,6 @@ public class MapsActivity extends AppCompatActivity implements OnMapReadyCallbac
                 drawerLayout.openDrawer(GravityCompat.START);
                 imageAddMarker.setVisibility(View.GONE);
                 addButton.setVisibility(View.VISIBLE);
-//                toolbar.setVisibility(View.GONE);
                 toolbar.getMenu().findItem(R.id.ok_button).setVisible(false);
                 return true;
             default:
